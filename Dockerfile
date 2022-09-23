@@ -30,35 +30,35 @@ RUN ./install_cuda.sh && \
 # System dependencies
 RUN apt update && apt install -y wget git python3 python3-pip zip
 
-RUN git clone https://github.com/ultralytics/yolov3 && \
+# This is the "archive" branch of yolov3 (before the yolov5 changes were merged in)
+RUN git clone https://github.com/edgeimpulse/yolov3 && \
     cd yolov3 && \
-    git checkout 0bbd055
-RUN cd yolov3 && pip3 install -r requirements.txt
+    git checkout 98068ef
+RUN --mount=type=cache,target=/root/.cache/pip \
+    cd yolov3 && pip3 install -r requirements.txt
 
 # Install TensorFlow
 COPY install_tensorflow.sh install_tensorflow.sh
-RUN /bin/bash install_tensorflow.sh && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /bin/bash install_tensorflow.sh && \
     rm install_tensorflow.sh
 
 # Local dependencies
 COPY requirements.txt ./
-RUN pip3 install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install -r requirements.txt
 
 # Patch up torch to disable cuda warnings
 RUN sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/amp/autocast_mode.py && \
     sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/cpu/amp/autocast_mode.py && \
     sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/cuda/amp/autocast_mode.py
 
-# Grab yolov3-tiny.pt pretrained weights
-RUN wget -O yolov3-tiny.pt https://github.com/ultralytics/yolov3/releases/download/v9.6.0/yolov3-tiny.pt
+# Grab yolov3-tiny pretrained weights
+RUN wget -O yolov3-tiny.weights https://cdn.edgeimpulse.com/build-system/yolov3-tiny.weights
 
-# Switch to our fork which has a tflite export fix
-# yes, I should have updated the clone ^ but didn't want to invalidate all previous layers as I'm on a conference WiFi network
+# Convert the weights into PyTorch weights
 RUN cd yolov3 && \
-    git remote rename origin upstream && \
-    git remote add origin https://github.com/edgeimpulse/yolov3 && \
-    git fetch origin && \
-    git checkout 40db97d
+    python3  -c "from models import *; convert('cfg/yolov3-tiny.cfg', '../yolov3-tiny.weights')"
 
 # Download some files that are pulled in, so we can run w/o network access
 RUN mkdir -p /root/.config/Ultralytics/ && wget -O /root/.config/Ultralytics/Arial.ttf https://ultralytics.com/assets/Arial.ttf

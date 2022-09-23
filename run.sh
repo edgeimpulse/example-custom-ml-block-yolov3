@@ -70,13 +70,12 @@ cd /app/yolov3
 #     --workers 0 - as this otherwise requires a larger /dev/shm than we have on Edge Impulse prod,
 #                   there's probably a workaround for this, but we need to check with infra.
 python3 -u train.py --img $IMAGE_SIZE \
-    --freeze 10 \
     --epochs $EPOCHS \
-    --data /tmp/data/data.yaml \
+    --data /tmp/data/data.data \
+    --cfg /app/yolov3/cfg/yolov3-tiny.cfg \
     --weights /app/yolov3-tiny.pt \
     --name yolov3_results \
-    --cache \
-    --workers 0
+    --cache
 echo "Training complete"
 echo ""
 
