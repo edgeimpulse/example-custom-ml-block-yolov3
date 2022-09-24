@@ -59,7 +59,7 @@ DATA_DIRECTORY=$(realpath $DATA_DIRECTORY)
 IMAGE_SIZE=$(python3 get_image_size.py --data-directory "$DATA_DIRECTORY")
 
 # convert Edge Impulse dataset (in Numpy format, with JSON for labels into something YOLOv3 understands)
-python3 -u extract_dataset.py --data-directory $DATA_DIRECTORY --out-directory /tmp/data
+python3 -u extract_dataset.py --data-directory $DATA_DIRECTORY --out-directory /data
 
 # Disable W&B prompts
 export WANDB_MODE=disabled
@@ -71,8 +71,8 @@ cd /app/yolov3
 #                   there's probably a workaround for this, but we need to check with infra.
 python3 -u train.py --img $IMAGE_SIZE \
     --epochs $EPOCHS \
-    --data /tmp/data/data.data \
-    --cfg /app/yolov3/cfg/yolov3-tiny.cfg \
+    --data /data/data.data \
+    --cfg /data/yolov3-tiny.cfg \
     --weights /app/yolov3-tiny.pt \
     --name yolov3_results \
     --cache
@@ -83,7 +83,11 @@ mkdir -p $OUT_DIRECTORY
 
 # export as f32
 echo "Converting to TensorFlow Lite model (fp16)..."
-python3 -u export.py --weights ./runs/train/yolov3_results/weights/last.pt --img $IMAGE_SIZE --include saved_model tflite
+
+# Convert to ONNX
+python3 detect.py --cfg /data/yolov3-tiny.cfg --names /data/data.names --weights weights/last_yolov3_results.pt --img-size $IMAGE_SIZE --output /tmp/
+
+python3 -u /app/yolov3-master/export.py --weights ./weights/last_yolov3_results.pt --img $IMAGE_SIZE --include saved_model tflite
 cp runs/train/yolov3_results/weights/last-fp16.tflite $OUT_DIRECTORY/model.tflite
 # ZIP up and copy the saved model too
 cd runs/train/yolov3_results/weights/last_saved_model
@@ -95,7 +99,7 @@ echo ""
 
 # export as i8 (skipping for now as it outputs a uint8 input, not an int8 - which the Studio won't handle)
 # echo "Converting to TensorFlow Lite model (int8)..."
-# python3 -u export.py --weights ./runs/train/yolov3_results/weights/last.pt --data /tmp/data/data.yaml --img $IMAGE_SIZE --include tflite --int8
+# python3 -u export.py --weights ./runs/train/yolov3_results/weights/last.pt --data /data/data.yaml --img $IMAGE_SIZE --include tflite --int8
 # cp runs/train/yolov3_results/weights/last-int8.tflite $OUT_DIRECTORY/model_quantized_int8_io.tflite
 # echo "Converting to TensorFlow Lite model (int8) OK"
 # echo ""

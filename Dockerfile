@@ -43,18 +43,16 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     /bin/bash install_tensorflow.sh && \
     rm install_tensorflow.sh
 
+# Grab yolov3-tiny pretrained weights
+RUN wget -O yolov3-tiny.weights https://cdn.edgeimpulse.com/build-system/yolov3-tiny.weights
+
 # Local dependencies
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install -r requirements.txt
 
-# Patch up torch to disable cuda warnings
-RUN sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/amp/autocast_mode.py && \
-    sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/cpu/amp/autocast_mode.py && \
-    sed -i -e "s/warnings.warn/\# warnings.warn/" /usr/local/lib/python3.8/dist-packages/torch/cuda/amp/autocast_mode.py
-
-# Grab yolov3-tiny pretrained weights
-RUN wget -O yolov3-tiny.weights https://cdn.edgeimpulse.com/build-system/yolov3-tiny.weights
+# Export ONNX
+RUN sed -i -e "s/ONNX_EXPORT = False/ONNX_EXPORT = True/" /app/yolov3/models.py
 
 # Convert the weights into PyTorch weights
 RUN cd yolov3 && \
@@ -62,6 +60,9 @@ RUN cd yolov3 && \
 
 # Download some files that are pulled in, so we can run w/o network access
 RUN mkdir -p /root/.config/Ultralytics/ && wget -O /root/.config/Ultralytics/Arial.ttf https://ultralytics.com/assets/Arial.ttf
+
+# Remove the .git directory, otherwise it tries to fetch something (and we don't have network access)
+RUN rm -rf /app/yolov3/.git
 
 WORKDIR /scripts
 
