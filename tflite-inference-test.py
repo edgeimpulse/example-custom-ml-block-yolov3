@@ -79,17 +79,19 @@ output1 = interpreter.get_tensor(output_details[1]['index'])
 print('output0.shape', output0.shape)
 print('output1.shape', output1.shape)
 
-blob = output1
+blob = output0
 
+# Still WIP analyzing this
 step = int(blob.shape[1] / 3)
 for oth in range(0, blob.shape[1], step):
     for row in range(blob.shape[2]):       # 13
         for col in range(blob.shape[3]):   # 13
             info_per_anchor = blob[0, oth:oth+step, row, col] #print("prob"+str(prob))
             x, y, width, height, prob = info_per_anchor[:5]
-            if (prob > 0):
-                class_id = np.argmax(info_per_anchor[5:])
-                print('x', x, 'y', y, 'w', width, 'h', height, 'prob', prob)
+            if (prob < 0): continue
+
+            class_id = np.argmax(info_per_anchor[5:])
+            print('row', row, 'col', col, 'x', x, 'y', y, 'w', width, 'h', height, 'prob', prob)
 
 
 # (1, 21, 5, 5) => 5 is bb attrs + confidence

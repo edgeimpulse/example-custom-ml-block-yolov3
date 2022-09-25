@@ -94,7 +94,7 @@ echo "Converting to darknet weights OK"
 echo ""
 
 echo "Converting to ONNX..."
-cd /app/darknet/yolo/
+cd /scripts/darknet/yolo
 python3 convert_to_pytorch.py custom
 python3 convert_to_onnx.py custom --image-size $IMAGE_SIZE
 echo "Converting to ONNX OK"

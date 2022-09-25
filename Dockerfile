@@ -79,12 +79,6 @@ RUN mkdir -p /root/.config/Ultralytics/ && wget -O /root/.config/Ultralytics/Ari
 # Remove the .git directory, otherwise it tries to fetch something (and we don't have network access)
 RUN rm -rf /app/yolov3/.git
 
-# Patch up detect.py
-COPY yolov3-patch/detect.py /app/yolov3/detect.py
-
-# Renesas scripts to convert
-COPY darknet ./darknet
-
 WORKDIR /scripts
 
 # Copy the normal files (e.g. run.sh and the extract_dataset scripts in)
