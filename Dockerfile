@@ -23,7 +23,7 @@ ENV POETRY_VIRTUALENVS_IN_PROJECT=true
 
 # CUDA drivers
 SHELL ["/bin/bash", "-c"]
-COPY ./install_cuda.sh ./install_cuda.sh
+COPY dependencies/install_cuda.sh ./install_cuda.sh
 RUN ./install_cuda.sh && \
     rm install_cuda.sh
 
@@ -37,22 +37,37 @@ RUN git clone https://github.com/edgeimpulse/yolov3 && \
 RUN --mount=type=cache,target=/root/.cache/pip \
     cd yolov3 && pip3 install -r requirements.txt
 
+# Grab yolov3-tiny pretrained weights
+RUN wget -O yolov3-tiny.weights https://cdn.edgeimpulse.com/build-system/yolov3-tiny.weights
+
+# Install cmake for tensorflow-onnx
+COPY dependencies/install_cmake.sh install_cmake.sh
+RUN /bin/bash install_cmake.sh && \
+    rm install_cmake.sh
+
 # Install TensorFlow
-COPY install_tensorflow.sh install_tensorflow.sh
-RUN --mount=type=cache,target=/root/.cache/pip \
+COPY dependencies/install_tensorflow.sh install_tensorflow.sh
+RUN --mount=type=cache,target=/root/.cache/pip --mount=type=cache,target=/app/wheels \
     /bin/bash install_tensorflow.sh && \
     rm install_tensorflow.sh
 
-# Grab yolov3-tiny pretrained weights
-RUN wget -O yolov3-tiny.weights https://cdn.edgeimpulse.com/build-system/yolov3-tiny.weights
+# Install TensorFlow addons
+COPY dependencies/install_tensorflow_addons.sh install_tensorflow_addons.sh
+RUN --mount=type=cache,target=/root/.cache/pip --mount=type=cache,target=/app/wheels \
+    /bin/bash install_tensorflow_addons.sh && \
+    rm install_tensorflow_addons.sh
 
 # Local dependencies
 COPY requirements.txt ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip3 install -r requirements.txt
 
-# Export ONNX
-RUN sed -i -e "s/ONNX_EXPORT = False/ONNX_EXPORT = True/" /app/yolov3/models.py
+# Install onnx-tensorflow
+RUN --mount=type=cache,target=/root/.cache/pip \
+    git clone https://github.com/onnx/onnx-tensorflow.git && \
+    cd onnx-tensorflow && \
+    git checkout 3f87e6235c96f2f66e523d95dc35ff4802862231 && \
+    pip3 install -e .
 
 # Convert the weights into PyTorch weights
 RUN cd yolov3 && \
@@ -63,6 +78,12 @@ RUN mkdir -p /root/.config/Ultralytics/ && wget -O /root/.config/Ultralytics/Ari
 
 # Remove the .git directory, otherwise it tries to fetch something (and we don't have network access)
 RUN rm -rf /app/yolov3/.git
+
+# Patch up detect.py
+COPY yolov3-patch/detect.py /app/yolov3/detect.py
+
+# Renesas scripts to convert
+COPY darknet ./darknet
 
 WORKDIR /scripts
 

@@ -59,10 +59,13 @@ DATA_DIRECTORY=$(realpath $DATA_DIRECTORY)
 IMAGE_SIZE=$(python3 get_image_size.py --data-directory "$DATA_DIRECTORY")
 
 # convert Edge Impulse dataset (in Numpy format, with JSON for labels into something YOLOv3 understands)
-python3 -u extract_dataset.py --data-directory $DATA_DIRECTORY --out-directory /data
+python3 -u extract_dataset.py --data-directory $DATA_DIRECTORY --out-directory /data/converted
 
 # Disable W&B prompts
 export WANDB_MODE=disabled
+
+# Disable ONNX export during training
+sed -i -e "s/ONNX_EXPORT = True/ONNX_EXPORT = False/" /app/yolov3/models.py
 
 cd /app/yolov3
 # train:
@@ -71,8 +74,8 @@ cd /app/yolov3
 #                   there's probably a workaround for this, but we need to check with infra.
 python3 -u train.py --img $IMAGE_SIZE \
     --epochs $EPOCHS \
-    --data /data/data.data \
-    --cfg /data/yolov3-tiny.cfg \
+    --data /data/converted/data.data \
+    --cfg /data/converted/yolov3-tiny.cfg \
     --weights /app/yolov3-tiny.pt \
     --name yolov3_results \
     --cache
@@ -81,25 +84,26 @@ echo ""
 
 mkdir -p $OUT_DIRECTORY
 
-# export as f32
-echo "Converting to TensorFlow Lite model (fp16)..."
+# Copy pytorch model
+cp weights/last_yolov3_results.pt $OUT_DIRECTORY/model.pt
 
-# Convert to ONNX
-python3 detect.py --cfg /data/yolov3-tiny.cfg --names /data/data.names --weights weights/last_yolov3_results.pt --img-size $IMAGE_SIZE --output /tmp/
-
-python3 -u /app/yolov3-master/export.py --weights ./weights/last_yolov3_results.pt --img $IMAGE_SIZE --include saved_model tflite
-cp runs/train/yolov3_results/weights/last-fp16.tflite $OUT_DIRECTORY/model.tflite
-# ZIP up and copy the saved model too
-cd runs/train/yolov3_results/weights/last_saved_model
-zip -r -X ./saved_model.zip . > /dev/null
-cp ./saved_model.zip $OUT_DIRECTORY/saved_model.zip
-cd /app/yolov3
-echo "Converting to TensorFlow Lite model (fp16) OK"
+echo "Converting to darknet weights..."
+python3  -c "from models import *; convert('/data/converted/yolov3-tiny.cfg', '/app/yolov3/weights/last_yolov3_results.pt')"
+cp weights/last_yolov3_results.weights $OUT_DIRECTORY/model.weights
+echo "Converting to darknet weights OK"
 echo ""
 
-# export as i8 (skipping for now as it outputs a uint8 input, not an int8 - which the Studio won't handle)
-# echo "Converting to TensorFlow Lite model (int8)..."
-# python3 -u export.py --weights ./runs/train/yolov3_results/weights/last.pt --data /data/data.yaml --img $IMAGE_SIZE --include tflite --int8
-# cp runs/train/yolov3_results/weights/last-int8.tflite $OUT_DIRECTORY/model_quantized_int8_io.tflite
-# echo "Converting to TensorFlow Lite model (int8) OK"
-# echo ""
+echo "Converting to ONNX..."
+cd /app/darknet/yolo/
+python3 convert_to_pytorch.py custom
+python3 convert_to_onnx.py custom --image-size $IMAGE_SIZE
+echo "Converting to ONNX OK"
+echo ""
+
+# the onnx file is now in /app/yolov3/weights/last_yolov3_results.onnx
+
+# export as f32
+echo "Converting to TensorFlow Lite model (fp16)..."
+python3 /scripts/conversion.py --onnx-file /app/yolov3/weights/last_yolov3_results.onnx --out-file $OUT_DIRECTORY/model.tflite
+echo "Converting to TensorFlow Lite model (fp16) OK"
+echo ""

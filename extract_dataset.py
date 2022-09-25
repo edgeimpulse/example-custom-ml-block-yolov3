@@ -98,7 +98,7 @@ with open(os.path.join(out_dir, 'data.names'), 'w') as f:
     class_names = []
     for c in range(0, class_count):
         class_names.append("class" + str(c))
-    f.write('\n'.join(class_names))
+    f.write('\n'.join(class_names) + '\n')
 
 with open(os.path.join(out_dir, 'data.data'), 'w') as f:
     f.write('classes=' + str(class_count) + '\n')
